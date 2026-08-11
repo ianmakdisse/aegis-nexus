@@ -1,0 +1,102 @@
+# Process roles — ADR-001.
+#
+# One container image. The NEXUS_ROLE environment variable selects which
+# subsystems boot. This is the file that makes "independently scaled process
+# roles" concrete rather than aspirational: each role has its own replica count,
+# resource envelope, and autoscaling signal.
+#
+# Rules:
+#   * A role boots ONLY the subsystems listed. An `api` pod must never start a
+#     consumer loop; a worker pod must never bind a port. Enforced at boot.
+#   * `singleton: true` roles are leader-elected and must not be scaled out.
+#   * `scale_signal` names the metric an autoscaler should track. A role with no
+#     honest scaling signal is a design smell, not a configuration gap.
+
+roles:
+  api:
+    description: "HTTP + WebSocket. Latency-critical (NFR-101/102)."
+    boots: [http_server, websocket, telemetry]
+    concurrency: { threads: 8 }
+    scale_signal: request_rate
+    replicas: { min: 3, max: 60 }
+    notes: >
+      Never shares a process with batch work. A slow projection rebuild must not
+      be able to consume the thread pool serving p95-sensitive traffic.
+
+  ingest:
+    description: "Signed webhook receipt. Store-and-ack only (NFR-106, FR-202)."
+    boots: [http_server, telemetry]
+    concurrency: { threads: 16 }
+    scale_signal: webhook_rate
+    replicas: { min: 2, max: 100 }
+    notes: >
+      Separated from `api` so a webhook storm from one provider cannot degrade
+      the interactive API. Pre-authorized extraction candidate in ADR-001.
+
+  relay:
+    description: "Outbox relay: publishes durably-committed events to the backbone."
+    boots: [outbox_relay, telemetry]
+    concurrency: { threads: 4 }
+    scale_signal: outbox_oldest_age_seconds
+    replicas: { min: 2, max: 20 }
+    notes: >
+      Starving this role silently delays everything downstream while producing
+      no errors — which is why it scales on the AGE of the oldest unpublished
+      row, not on queue depth.
+
+  consumer:
+    description: "Backbone consumers → idempotent handlers."
+    boots: [event_consumers, telemetry]
+    concurrency: { threads: 8 }
+    scale_signal: consumer_lag_seconds
+    replicas: { min: 2, max: 40 }
+
+  projector:
+    description: "Events → read models (ADR-004)."
+    boots: [projectors, telemetry]
+    concurrency: { threads: 4 }
+    scale_signal: projection_lag_seconds
+    replicas: { min: 2, max: 20 }
+    notes: "Isolated so a rebuild never touches the write path."
+
+  worker_default:
+    description: "Workflow steps, timers, retries."
+    boots: [job_worker, telemetry]
+    queues: [steps, timers, default]
+    concurrency: { threads: 10 }
+    scale_signal: queue_depth
+    replicas: { min: 3, max: 200 }
+
+  worker_agents:
+    description: "AI executions (ADR-007)."
+    boots: [job_worker, telemetry]
+    queues: [agents]
+    concurrency: { threads: 25 }
+    scale_signal: agent_queue_depth
+    replicas: { min: 2, max: 100 }
+    notes: >
+      Latency-bound on model providers, not CPU-bound, so it runs a much higher
+      thread count per pod than other workers. Per-tenant concurrency caps are
+      applied inside the runtime, not here.
+
+  worker_documents:
+    description: "Document ingestion pipeline (FR-501)."
+    boots: [job_worker, telemetry]
+    queues: [documents]
+    concurrency: { threads: 4 }
+    resources: { memory: high }
+    scale_signal: document_queue_depth
+    replicas: { min: 1, max: 30 }
+    notes: >
+      Parses hostile input. Memory-heavy and the first candidate for extraction
+      into a sandboxed service.
+
+  scheduler:
+    description: "Due-time dispatch, partition maintenance, reconciliation."
+    boots: [scheduler, telemetry]
+    singleton: true
+    concurrency: { threads: 2 }
+    replicas: { min: 1, max: 1 }
+    notes: >
+      Leader-elected. Missing a tick is safe: dispatch is a due-time query, so a
+      restarted scheduler catches up every missed timer rather than losing them.

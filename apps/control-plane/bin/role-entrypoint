@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Role dispatcher — ADR-001.
+#
+# One image, many roles. NEXUS_ROLE decides which subsystems boot. The mapping
+# lives in config/roles.yml; this script is the executable half of it.
+#
+# Two properties matter more than convenience here:
+#
+#   * A role boots ONLY its own subsystems. An `api` pod that also runs
+#     consumers will look fine until a deploy scales the API tier and silently
+#     multiplies consumer concurrency.
+#   * SIGTERM must drain, not kill. Workers hold leases; a killed worker leaves
+#     a run unavailable until its lease expires (NFR-105 budget: 30 s).
+
+set -euo pipefail
+
+ROLE="${NEXUS_ROLE:-api}"
+
+echo "[entrypoint] role=${ROLE} env=${RAILS_ENV:-development} transport=${NEXUS_EVENT_TRANSPORT:-postgres}"
+
+# Fail fast on an unknown role rather than silently defaulting to `api`.
+# A typo in a Kubernetes manifest should crash-loop loudly, not quietly start
+# the wrong process.
+case "$ROLE" in
+  api)
+    exec bundle exec puma -C config/puma.rb
+    ;;
+  ingest)
+    exec bundle exec puma -C config/puma.rb
+    ;;
+  relay)
+    exec bundle exec rails runner "Nexus::Events::Relay.run!"
+    ;;
+  consumer)
+    exec bundle exec rails runner "Nexus::Events::Consumer.run!"
+    ;;
+  projector)
+    exec bundle exec rails runner "Nexus::Projections::Runner.run!"
+    ;;
+  worker:*)
+    QUEUES="${ROLE#worker:}"
+    exec bundle exec rails runner "Nexus::Jobs::Worker.run!(queues: %w[${QUEUES//,/ }])"
+    ;;
+  scheduler)
+    exec bundle exec rails runner "Nexus::Jobs::Scheduler.run!"
+    ;;
+  console)
+    exec bundle exec rails console
+    ;;
+  migrate)
+    # Migrations run as their own job, never as an app-boot side effect: a
+    # rolling deploy must not have N pods racing to migrate (INV-11).
+    exec bundle exec rails db:migrate
+    ;;
+  *)
+    echo "[entrypoint] FATAL: unknown NEXUS_ROLE '${ROLE}'." >&2
+    echo "[entrypoint] Valid roles are declared in config/roles.yml." >&2
+    exit 64
+    ;;
+esac

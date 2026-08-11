@@ -1,0 +1,52 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+ruby ">= 3.2.0"
+
+# --- Core runtime -----------------------------------------------------------
+gem "rails", "~> 7.1.3"
+gem "pg", "~> 1.5"                 # ADR-002: PostgreSQL is the authoritative store
+gem "puma", "~> 6.4"
+gem "bootsnap", require: false
+gem "rack-cors"
+
+# --- Security ---------------------------------------------------------------
+gem "bcrypt", "~> 3.1"             # password hashing (FR-105)
+gem "jwt", "~> 2.7"                # short-lived access tokens (FR-109)
+gem "rotp", "~> 6.3"               # TOTP MFA (FR-105)
+gem "rack-attack", "~> 6.7"        # edge rate limiting (FR-604)
+
+# --- Infrastructure ---------------------------------------------------------
+# Redis is a cache/coordination layer only. INV-08 forbids it from holding
+# durable business state, so the platform must run correctly without it.
+gem "redis", "~> 5.0", require: false
+gem "connection_pool", "~> 2.4"
+
+# Vector similarity. ADR-008 keeps embeddings in PostgreSQL behind a port;
+# this gem only provides the ActiveRecord type, not a separate datastore.
+gem "pgvector", "~> 0.2", require: false
+
+# --- Observability ----------------------------------------------------------
+# INV-23: every significant operation is traceable end to end.
+gem "opentelemetry-sdk", "~> 1.4", require: false
+gem "opentelemetry-exporter-otlp", "~> 0.26", require: false
+gem "opentelemetry-instrumentation-rails", "~> 0.30", require: false
+
+# --- Utilities --------------------------------------------------------------
+gem "dry-schema", "~> 1.13"        # tool + event payload validation (FR-402, FR-207)
+gem "oj", "~> 3.16"                # fast, deterministic JSON (deterministic key order
+                                   # matters for prompt caching — see ADR-007)
+
+group :development, :test do
+  gem "dotenv-rails"
+  gem "rspec-rails", "~> 6.0"
+  gem "factory_bot_rails"
+  gem "rubocop", require: false
+  gem "rubocop-rails", require: false
+  gem "rubocop-rspec", require: false
+end
+
+group :development do
+  gem "listen"
+end

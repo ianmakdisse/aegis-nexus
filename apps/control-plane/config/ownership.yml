@@ -1,0 +1,164 @@
+# Bounded-context ownership register — the machine-readable form of
+# docs/02-architecture/context-map.md.
+#
+# Read by tools/boundary-check/check.rb to enforce:
+#   INV-01  a context owns its tables exclusively
+#   INV-02  the published contract is the only public surface
+#   INV-03  cross-context calls are async unless listed in `sync_allowed`
+#
+# Editing this file changes what the build permits. Any change here must be
+# accompanied by the corresponding change to the context map doc, and a
+# reviewer should ask why a boundary is moving.
+
+contexts:
+  identity:
+    # `credentials`, `mfa_factors` and `refresh_tokens` were declared here in
+    # Phase 2 and never created: the schema puts the password digest and the MFA
+    # secret on `users`, and makes the session row itself the refresh token
+    # (digest + family_id). Three tables for what is one row each was the plan;
+    # the schema is better and the register now says so. See ADR-011.
+    tables: [users, sessions, service_identities]
+    public: [Authenticate, Principal, IssueToken, RevokeToken, RegisterServiceIdentity]
+
+  organizations:
+    tables: [organizations, memberships, teams, team_memberships, org_placements]
+    public: [Tenant, Membership, Placement, ProvisionOrganization]
+
+  authorization:
+    tables: [roles, permissions, role_permissions, grants, policies]
+    public: [Authorize, PermissionSet, Policy, PermissionCatalog, AssignRole, SeedSystemRoles]
+
+  events:
+    tables:
+      - ingested_events
+      - event_store_events
+      - event_store_snapshots
+      - outbox_messages
+      - inbox_messages
+      - dead_letter_messages
+      - consumer_offsets
+      - event_type_registry
+      - event_log_entries
+      - event_log_cursors
+    public: [Publisher, Consumer, Replay, EventType, Envelope, Relay]
+
+  workflows:
+    tables:
+      - workflow_definitions
+      - workflow_versions
+      - workflow_runs
+      - step_executions
+      - approval_requests
+      - scheduled_jobs
+      - run_leases
+    public: [Trigger, Run, Definition, Approve, Cancel]
+
+  agents:
+    tables:
+      - agents
+      - agent_versions
+      - agent_executions
+      - agent_memories
+      - tool_registrations
+      - tool_invocations
+    public: [Invoke, Execution, Agent, ToolRegistry]
+
+  integrations:
+    tables:
+      - integrations
+      - connections
+      - encrypted_credentials
+      - webhook_endpoints
+      - webhook_deliveries
+      - endpoint_health
+    public: [Call, Webhook, Connector, Connection]
+
+  documents:
+    tables:
+      - documents
+      - document_chunks
+      - chunk_embeddings
+      - ingestion_jobs
+      - knowledge_namespaces
+    public: [Ingest, Retrieve, Document, VectorStore]
+
+  notifications:
+    tables: [notification_channels, notification_deliveries, subscriptions]
+    public: [Send, Channel]
+
+  billing:
+    tables: [budgets, usage_records, cost_rollups, reservations]
+    public: [Meter, CheckBudget, Usage, Budget]
+
+  audit:
+    tables: [audit_records, audit_chains]
+    public: [Record, Timeline, Verify]
+
+# Tables intentionally not owned by any context.
+platform_global:
+  - schema_migrations
+  - ar_internal_metadata
+  - regions
+  - feature_flags
+  - tool_catalog_templates
+
+# The INV-13 exemption list: tables whose rows carry NO organization_id.
+#
+# This is a different question from `platform_global` above, and conflating the
+# two hid a gap for two phases. A table can have no *owner* (platform_global) or
+# no *tenant* (this list) or both. `users` and `permissions` are owned by a
+# context and are still tenant-less, so they belonged on a list that did not
+# exist — and INV-13's requirement that exemptions be "enumerated explicitly"
+# was therefore not machine-checkable. migration-lint reads this list.
+#
+# Adding an entry requires an ADR. Each one is a place where the strongest
+# guarantee in the system does not apply.
+tenant_exempt:
+  - schema_migrations       # framework
+  - ar_internal_metadata    # framework
+  - regions                 # deployment topology, identical for every tenant
+  - feature_flags           # platform rollout state
+  - tool_catalog_templates  # the catalog of tool *types*, not tenant instances
+  - users                   # one human, many organizations; mediated by memberships
+  - permissions             # the vocabulary of the software, not of a tenant
+  - organizations           # IS the tenant; its RLS policy keys on `id`
+  - event_type_registry     # event vocabulary; same argument as `permissions` (ADR-012)
+  - consumer_offsets        # a position in a transport partition; there is no tenant in an offset (ADR-012)
+
+# Synchronous cross-context calls permitted by the context map. Anything not
+# listed here must go through events. The `why` field is required: a synchronous
+# dependency without a stated reason is an availability multiplier by accident.
+sync_allowed:
+  - from: "*"
+    to: events
+    why: >
+      Publishing is an INSERT into the caller's own outbox, inside the caller's
+      own transaction (INV-04). It is not a network call, it cannot fail
+      independently of the write it accompanies, and it adds no availability
+      coupling — the properties INV-03 exists to protect. The Constitution
+      requires every context to call Nexus::Events::Publisher, so this edge is
+      mandatory rather than merely permitted.
+  - from: "*"
+    to: authorization
+    why: "The request cannot proceed without a decision, and ADR-010 Rule 1 forbids reading stale authorization state."
+  - from: "*"
+    to: organizations
+    why: "Tenant must be resolved before any data access."
+  - from: workflows
+    to: agents
+    why: "The step's output is the agent's decision."
+  - from: agents
+    to: documents
+    why: "The prompt cannot be assembled without retrieved context."
+  - from: agents
+    to: integrations
+    why: "Tool results feed the next model turn."
+  - from: agents
+    to: billing
+    why: "Budget must be checked before spend (fail closed)."
+  - from: workflows
+    to: billing
+    why: "Budget must be checked before spend (fail closed)."
+  - from: workflows
+    to: integrations
+    why: "HTTP steps invoke connectors synchronously within the step."

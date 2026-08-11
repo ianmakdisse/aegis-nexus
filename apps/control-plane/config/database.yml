@@ -1,0 +1,45 @@
+# Database configuration — ADR-002 (PostgreSQL authoritative), ADR-009 (hybrid tenancy).
+#
+# Two connection identities matter here, and conflating them defeats RLS:
+#
+#   owner  — runs migrations and owns the tables. RLS does NOT apply to a table
+#            owner unless FORCE ROW LEVEL SECURITY is set (we set it), and never
+#            applies to a superuser.
+#   app    — what request-serving processes use. Least privilege: DML only, no
+#            DDL, and RLS applies.
+#
+# The isolation suite depends on this split: proving layer (a) works requires a
+# connection that RLS actually governs.
+
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 8) %>
+  # Fail fast rather than queueing behind an exhausted pool — a saturated pool
+  # should surface as an error with a correlation ID, not as a mystery timeout.
+  checkout_timeout: 5
+  variables:
+    # A request must never hold a transaction open indefinitely; long
+    # transactions block vacuum and cause the bloat cascade in ADR-002.
+    statement_timeout: "15s"
+    idle_in_transaction_session_timeout: "30s"
+    lock_timeout: "5s"
+
+development:
+  <<: *default
+  database: <%= ENV.fetch("NEXUS_DB_NAME", "aegis_nexus_development") %>
+  url: <%= ENV.fetch("DATABASE_URL", nil) %>
+
+test:
+  <<: *default
+  database: <%= ENV.fetch("NEXUS_DB_NAME_TEST", "aegis_nexus_test") %>
+  url: <%= ENV.fetch("DATABASE_URL", nil) %>
+  # Tests run migrations as owner; FORCE ROW LEVEL SECURITY is what keeps RLS
+  # meaningful even on the owning connection.
+
+production:
+  <<: *default
+  url: <%= ENV.fetch("DATABASE_URL", nil) %>
+  # Dedicated-tier tenants are resolved at runtime by the tenant resolver, which
+  # opens a connection for the tenant's placement rather than using this default.
+  # See ADR-009 and infrastructure/database/tenant_resolver.rb.
