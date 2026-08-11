@@ -40,7 +40,7 @@ contexts:
       - event_type_registry
       - event_log_entries
       - event_log_cursors
-    public: [Publisher, Consumer, Replay, EventType, Envelope, Relay]
+    public: [Publisher, Consumer, Replay, EventType, Envelope, Relay, EventStore]
 
   workflows:
     tables:
