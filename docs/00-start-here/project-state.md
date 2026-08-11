@@ -53,7 +53,7 @@ disagree about what exists, **this file wins**.
 | 2 | Repository structure & foundations | ✅ |
 | 3 | Identity & multi-tenancy | ✅ isolation verified; password + TOTP + tokens implemented (SSO deferred to 13) |
 | 4 | Core domain model | ✅ 2 tables deferred on unresolved questions (TD-010) |
-| 5 | Event infrastructure | ✅ backbone complete; Kafka transport deferred to 14 |
+| 5 | Event infrastructure | ✅ complete; Kafka transport deferred to 14 |
 | 6 | CQRS & event sourcing | ⬜ next |
 | 7 | Durable workflow engine | ⬜ |
 | 8 | Agent runtime | ⬜ |

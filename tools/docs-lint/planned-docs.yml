@@ -146,8 +146,6 @@ planned:
   phase: 12
 - path: docs/12-operations/runbooks/workflow-stuck.md
   phase: 12
-- path: docs/13-reference/events.md
-  phase: 5
 - path: docs/performance/performance-register.md
   phase: 17
 - path: docs/traceability-matrix.md
