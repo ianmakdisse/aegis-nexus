@@ -21,7 +21,7 @@ contexts:
     public: [Authenticate, Principal, IssueToken, RevokeToken, RegisterServiceIdentity]
 
   organizations:
-    tables: [organizations, memberships, teams, team_memberships, org_placements]
+    tables: [organizations, memberships, teams, team_memberships, org_placements, tenant_directory]
     public: [Tenant, Membership, Placement, ProvisionOrganization]
 
   authorization:
@@ -124,6 +124,18 @@ tenant_exempt:
   - organizations           # IS the tenant; its RLS policy keys on `id`
   - event_type_registry     # event vocabulary; same argument as `permissions` (ADR-012)
   - consumer_offsets        # a position in a transport partition; there is no tenant in an offset (ADR-012)
+
+# Tables that DO carry organization_id but deliberately have NO row-level
+# security policy. A third category, distinct from tenant_exempt above: those
+# rows have no tenant at all, these have one and are still not isolated.
+#
+# There is exactly one, and it exists because of a circularity: a process that
+# needs to find which tenants exist cannot be restricted to one tenant while
+# asking. Adding an entry requires an ADR and should be assumed wrong until
+# proven otherwise — this is the only place in the system where a row names a
+# tenant and the database does not enforce it.
+rls_exempt:
+  - tenant_directory        # identifiers only, never descriptions (ADR-013)
 
 # Synchronous cross-context calls permitted by the context map. Anything not
 # listed here must go through events. The `why` field is required: a synchronous

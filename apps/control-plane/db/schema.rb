@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_10_000011) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_11_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pgcrypto"
   enable_extension "plpgsql"
@@ -685,6 +685,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_10_000011) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["organization_id", "name"], name: "index_teams_on_organization_id_and_name", unique: true
+  end
+
+  create_table "tenant_directory", primary_key: "organization_id", id: :uuid, default: nil, force: :cascade do |t|
+    t.string "status", default: "active", null: false
+    t.string "region_code", null: false
+    t.string "tier", default: "pool", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["status", "region_code"], name: "index_tenant_directory_active"
   end
 
   create_table "tool_catalog_templates", primary_key: "key", id: :string, force: :cascade do |t|

@@ -59,6 +59,16 @@ module Nexus
             # Authorization owns roles; go through its published contract (INV-01).
             Nexus::Authorization::SeedSystemRoles.call
           end
+
+          # The platform directory (ADR-013), written in the SAME transaction.
+          #
+          # This is what makes drift between `organizations` and the directory
+          # structurally impossible rather than a reconciliation job's problem.
+          # It sits outside the tenant context block because the directory is
+          # platform-global — it holds the identifiers background processes use
+          # to find a tenant, and a tenant that no relay can see accumulates
+          # outbox rows nobody ever publishes.
+          Tenant.register!(organization_id: organization_id, region_code: region_code, tier: tier)
         end
 
         Result.new(organization_id: organization_id)
