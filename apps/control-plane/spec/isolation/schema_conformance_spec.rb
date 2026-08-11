@@ -46,6 +46,16 @@ RSpec.describe "schema conformance" do
     (registry.fetch("tenant_exempt", []) + registry.fetch("platform_global", [])).to_set
   end
 
+  # A third category: carries organization_id but deliberately has no policy.
+  # There is exactly one — `tenant_directory` — and it exists because of a
+  # circularity: a process asking which tenants exist cannot be restricted to
+  # one tenant while asking (ADR-013).
+  let(:rls_exempt) { registry.fetch("rls_exempt", []).to_set }
+
+  # Tables that must be policy-protected: everything with a tenant column,
+  # minus the declared exception.
+  let(:isolated_tables) { tenant_tables.reject { |t| rls_exempt.include?(t) } }
+
   it "has tenant tables to check, so a passing run means something" do
     # Guards against the vacuous version of every assertion below: if the
     # catalog query silently returned nothing, every `all?` would pass.
@@ -54,7 +64,7 @@ RSpec.describe "schema conformance" do
 
   describe "INV-14 — every tenant table is governed by row-level security" do
     it "has RLS enabled on all of them" do
-      missing = tenant_tables.reject { |t| rls_state.dig(t, :enabled) }
+      missing = isolated_tables.reject { |t| rls_state.dig(t, :enabled) }
 
       expect(missing).to be_empty,
                          "these tables carry organization_id but have no RLS: #{missing.join(', ')}"
@@ -65,7 +75,7 @@ RSpec.describe "schema conformance" do
     # connection most likely to be used for a "quick fix" in production, and the
     # isolation suite would still pass. This is SEC-001, generalized.
     it "has RLS FORCEd on all of them" do
-      missing = tenant_tables.reject { |t| rls_state.dig(t, :forced) }
+      missing = isolated_tables.reject { |t| rls_state.dig(t, :forced) }
 
       expect(missing).to be_empty,
                          "these tables have RLS enabled but not FORCEd: #{missing.join(', ')}"
@@ -75,7 +85,7 @@ RSpec.describe "schema conformance" do
     # a correctness failure rather than a security one — but a table nobody can
     # read is discovered in production, not in review.
     it "has at least one policy on all of them" do
-      missing = tenant_tables.reject { |t| policied_tables.include?(t) }
+      missing = isolated_tables.reject { |t| policied_tables.include?(t) }
 
       expect(missing).to be_empty,
                          "these tables have RLS but no policy: #{missing.join(', ')}"
@@ -104,6 +114,24 @@ RSpec.describe "schema conformance" do
 
       expect(stale).to be_empty,
                        "these are declared tenant-exempt but now carry organization_id: #{stale.join(', ')}"
+    end
+  end
+
+  describe "the RLS exemption stays exactly one table" do
+    # This is the only place in the system where a row names a tenant and the
+    # database does not enforce it. A second entry should be assumed wrong until
+    # an ADR argues otherwise, so growth of this list is a test failure.
+    it "is only tenant_directory" do
+      expect(rls_exempt.to_a).to eq(%w[tenant_directory])
+    end
+
+    it "holds identifiers and never descriptions (ADR-013)" do
+      columns = query(<<~SQL).map { |r| r["column_name"] }
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tenant_directory'
+      SQL
+
+      expect(columns).to match_array(%w[organization_id status region_code tier created_at updated_at])
     end
   end
 
