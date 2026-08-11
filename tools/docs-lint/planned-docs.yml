@@ -34,16 +34,11 @@ planned:
   phase: 7
 - path: docs/03-domains/workflows/versioning.md
   phase: 7
-- path: docs/04-distributed-systems/consistency-model.md
-  phase: 6
-- path: docs/04-distributed-systems/cqrs.md
-  phase: 6
-- path: docs/04-distributed-systems/event-sourcing.md
-  phase: 6
-- path: docs/04-distributed-systems/failure-recovery.md
-  phase: 6
+# Re-declared 2026-08-11: sagas describe compensation across steps, and the
+# only thing that can compensate is the workflow engine. Writing this in
+# Phase 6 would document a pattern nothing implements.
 - path: docs/04-distributed-systems/sagas.md
-  phase: 6
+  phase: 7
 - path: docs/05-ai/agent-memory.md
   phase: 9
 - path: docs/05-ai/agent-runtime.md
