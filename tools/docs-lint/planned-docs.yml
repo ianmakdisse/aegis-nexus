@@ -42,14 +42,6 @@ planned:
   phase: 6
 - path: docs/04-distributed-systems/failure-recovery.md
   phase: 6
-- path: docs/04-distributed-systems/idempotency.md
-  phase: 6
-- path: docs/04-distributed-systems/inbox-pattern.md
-  phase: 6
-- path: docs/04-distributed-systems/ordering-guarantees.md
-  phase: 6
-- path: docs/04-distributed-systems/outbox-pattern.md
-  phase: 6
 - path: docs/04-distributed-systems/sagas.md
   phase: 6
 - path: docs/05-ai/agent-memory.md
