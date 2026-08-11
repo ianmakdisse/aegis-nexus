@@ -9,6 +9,38 @@
 
 ---
 
+## 2026-08-11 — Repository placed under version control at the Phase 4 baseline
+
+**Author:** Platform
+
+**Motivation:** The project reached Phase 4 with no repository. Every architectural claim in `/docs` was
+verifiable only against a working directory that nothing preserved.
+
+**Old architecture:** no version control.
+
+**New architecture:** a local Git repository anchored by the annotated tag `phase-4-baseline`.
+
+**What was deliberately *not* done:** history for Phases 0–4 was not reconstructed. Those phases happened
+outside version control, and commits dated to them would be a fabricated record. The baseline is a snapshot,
+decomposed into ~19 logical commits for reviewability, and it says so in
+[project-state.md](00-start-here/project-state.md#version-control).
+
+**Correction to the task as briefed:** this was requested as a *Phase 3* baseline. Verification against the
+filesystem showed the tree at Phase 4 complete with Phase 5 in progress — 11 migrations to Phase 3's 4, 55
+tables to 15, 12 ADRs, 3 CI checkers. Labelling it Phase 3 would have been precisely the false historical
+claim the task existed to avoid, so the anchor is `phase-4-baseline`.
+
+**Affected components:** none — no application code changed. `.gitignore` added.
+
+**Security:** `config/master.key` is excluded; the encrypted credentials file is tracked, which is only safe
+because the key is not. No API keys, private keys, or cloud credentials were found anywhere in the tree. The
+local development role passwords in `db/roles.sql` and `spec/rails_helper.rb` are intentional setup values
+for a local database, not secrets.
+
+**Rollback:** deleting `.git/` returns the project to its previous state; no file contents were altered.
+
+---
+
 ## 2026-08-10 — Core domain schema: 40 tables, a migration linter, and ADR-012
 
 **Author:** Platform, Data, Security (Phase 4)

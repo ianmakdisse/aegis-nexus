@@ -7,6 +7,27 @@
 
 ---
 
+## Version control
+
+Git was initialized on **2026-08-11**, after Phase 4 was complete — not at the start of the project. There is
+therefore **no commit history for Phases 0–4**, and none was reconstructed. Inventing commits dated to
+development that happened outside version control would be a fabricated record, and this file's whole purpose
+is to be the one place that is not.
+
+What exists instead:
+
+| | |
+|---|---|
+| **Anchor** | `phase-4-baseline` (annotated tag) |
+| **What it contains** | The verified state of Phases 0–4: 55 tables, 12 ADRs, 3 CI checkers, 127 passing examples |
+| **How it was built** | One verified snapshot, decomposed into ~19 logical commits so the baseline is reviewable rather than a single opaque import |
+| **What that means** | Each commit holds the *final* content of the files it introduces. Intermediate commits are not independently runnable, and were never claimed to be. Only the tagged commit is the verified state. |
+
+Work after the tag is ordinary incremental history. The Phase 5 event backbone was in progress when the
+repository was created and is committed after the anchor, marked `wip`.
+
+---
+
 ## ⚠️ Documentation-vs-implementation status
 
 Much of `/docs` describes the **designed** system. Implementation trails design by design (ADRs are written
