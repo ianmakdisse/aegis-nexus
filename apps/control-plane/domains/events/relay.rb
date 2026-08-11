@@ -52,21 +52,26 @@ module Nexus
 
         # The `relay` role's entry point (bin/role-entrypoint).
         #
-        # Requires a source of tenant ids. There is deliberately no default: the
-        # set of tenants cannot be read from the database by any application
-        # role, because `organizations` is itself RLS-protected and no role
-        # bypasses policy (INV-14). Enumerating tenants is an unresolved
-        # architectural question — see the Phase 5 notes in project-state.md.
-        # Guessing at it here would either invent a privileged role or silently
-        # relay for nobody.
+        # Tenants come from the platform directory (ADR-013), not from
+        # `organizations` — that table is RLS-protected and no application role
+        # bypasses policy, so a correctly isolated system cannot list its own
+        # tenants. The directory holds identifiers only; the work itself still
+        # happens inside each tenant's context, through the ordinary path.
+        #
+        # `tenant_source` stays injectable for tests and for a sharded loop
+        # (Phase 15), where each replica takes a range of the directory.
         def run!(tenant_source: nil, interval: 1.0, topic: DEFAULT_TOPIC)
-          ids = tenant_source || (raise TenantEnumerationUnavailable, tenant_enumeration_message)
-
           loop do
-            total = Array(ids.respond_to?(:call) ? ids.call : ids)
-                    .sum { |id| drain(organization_id: id, topic: topic) }
+            total = each_tenant_id(tenant_source).sum { |id| drain(organization_id: id, topic: topic) }
             sleep(interval) if total.zero?
           end
+        end
+
+        # Enumerable of tenant ids for one pass of the loop.
+        def each_tenant_id(tenant_source = nil)
+          return Array(tenant_source.respond_to?(:call) ? tenant_source.call : tenant_source) if tenant_source
+
+          Nexus::Organizations::Tenant.each_active_id
         end
 
         private

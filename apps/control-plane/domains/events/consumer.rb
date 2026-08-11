@@ -63,17 +63,11 @@ module Nexus
         end
 
         # The `consumer` role's entry point (bin/role-entrypoint). Runs every
-        # registered consumer for every tenant it is given.
-        #
-        # `tenant_source` is required for the same reason it is on the relay:
-        # `organizations` is RLS-protected and no application role bypasses
-        # policy, so tenants cannot be enumerated from the database.
+        # registered consumer for every tenant, enumerated from the platform
+        # directory (ADR-013) for the same reason the relay does.
         def run!(tenant_source: nil, interval: 1.0)
-          raise Relay::TenantEnumerationUnavailable, "Consumer.run! needs a tenant source" if tenant_source.nil?
-
           loop do
-            ids = tenant_source.respond_to?(:call) ? tenant_source.call : tenant_source
-            total = Array(ids).sum do |id|
+            total = Relay.each_tenant_id(tenant_source).sum do |id|
               registry.sum { |consumer| consumer.consume(organization_id: id).processed }
             end
             sleep(interval) if total.zero?
