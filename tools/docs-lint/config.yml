@@ -1,0 +1,7 @@
+# docs-lint configuration
+#
+# current_phase drives the `stale-plan` check: a document declared for a phase
+# earlier than this that still does not exist is an error, not a warning.
+# Bump this when a phase completes — that is what stops planned-docs.yml from
+# becoming a permanent excuse list.
+current_phase: 5

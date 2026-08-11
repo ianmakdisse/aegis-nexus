@@ -1,0 +1,126 @@
+# Bounded-context ownership register — the machine-readable form of
+# docs/02-architecture/context-map.md.
+#
+# Read by tools/boundary-check/check.rb to enforce:
+#   INV-01  a context owns its tables exclusively
+#   INV-02  the published contract is the only public surface
+#   INV-03  cross-context calls are async unless listed in `sync_allowed`
+#
+# Editing this file changes what the build permits. Any change here must be
+# accompanied by the corresponding change to the context map doc, and a
+# reviewer should ask why a boundary is moving.
+
+contexts:
+  identity:
+    tables: [users, credentials, sessions, service_identities, mfa_factors, refresh_tokens]
+    public: [Authenticate, Principal, IssueToken, RevokeToken]
+
+  organizations:
+    tables: [organizations, memberships, teams, team_memberships, org_placements]
+    public: [Tenant, Membership, Placement, ProvisionOrganization]
+
+  authorization:
+    tables: [roles, permissions, role_permissions, grants, policies]
+    public: [Authorize, PermissionSet, Policy]
+
+  events:
+    tables:
+      - ingested_events
+      - event_store_events
+      - event_store_snapshots
+      - outbox_messages
+      - inbox_messages
+      - dead_letter_messages
+      - consumer_offsets
+      - event_type_registry
+    public: [Publisher, Consumer, Replay, EventType, Envelope]
+
+  workflows:
+    tables:
+      - workflow_definitions
+      - workflow_versions
+      - workflow_runs
+      - step_executions
+      - approval_requests
+      - scheduled_jobs
+      - run_leases
+    public: [Trigger, Run, Definition, Approve, Cancel]
+
+  agents:
+    tables:
+      - agents
+      - agent_versions
+      - agent_executions
+      - agent_memories
+      - tool_registrations
+      - tool_invocations
+    public: [Invoke, Execution, Agent, ToolRegistry]
+
+  integrations:
+    tables:
+      - integrations
+      - connections
+      - encrypted_credentials
+      - webhook_endpoints
+      - webhook_deliveries
+      - endpoint_health
+    public: [Call, Webhook, Connector, Connection]
+
+  documents:
+    tables:
+      - documents
+      - document_chunks
+      - chunk_embeddings
+      - ingestion_jobs
+      - knowledge_namespaces
+    public: [Ingest, Retrieve, Document, VectorStore]
+
+  notifications:
+    tables: [notification_channels, notification_deliveries, subscriptions]
+    public: [Send, Channel]
+
+  billing:
+    tables: [budgets, usage_records, cost_rollups, reservations]
+    public: [Meter, CheckBudget, Usage, Budget]
+
+  audit:
+    tables: [audit_records, audit_chains]
+    public: [Record, Timeline, Verify]
+
+# Tables intentionally not owned by any context (INV-13 exemption list).
+# Adding to this list requires an ADR — these rows carry no organization_id.
+platform_global:
+  - schema_migrations
+  - ar_internal_metadata
+  - regions
+  - feature_flags
+  - tool_catalog_templates
+
+# Synchronous cross-context calls permitted by the context map. Anything not
+# listed here must go through events. The `why` field is required: a synchronous
+# dependency without a stated reason is an availability multiplier by accident.
+sync_allowed:
+  - from: "*"
+    to: authorization
+    why: "The request cannot proceed without a decision, and ADR-010 Rule 1 forbids reading stale authorization state."
+  - from: "*"
+    to: organizations
+    why: "Tenant must be resolved before any data access."
+  - from: workflows
+    to: agents
+    why: "The step's output is the agent's decision."
+  - from: agents
+    to: documents
+    why: "The prompt cannot be assembled without retrieved context."
+  - from: agents
+    to: integrations
+    why: "Tool results feed the next model turn."
+  - from: agents
+    to: billing
+    why: "Budget must be checked before spend (fail closed)."
+  - from: workflows
+    to: billing
+    why: "Budget must be checked before spend (fail closed)."
+  - from: workflows
+    to: integrations
+    why: "HTTP steps invoke connectors synchronously within the step."

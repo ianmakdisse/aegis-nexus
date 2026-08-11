@@ -1,0 +1,156 @@
+# Planned documents — declared forward references.
+#
+# A link to a document listed here is allowed even though the file does not exist
+# yet; a link to anything NOT listed here and NOT present is a build failure.
+#
+# This is how the architecture docs are permitted to reference the system they
+# describe before it is written, without the linter degrading into noise.
+#
+# Rules enforced by tools/docs-lint/lint.rb:
+#   * once the file exists, it must be removed from this list (undeclared-plan)
+#   * once config.yml:current_phase passes an entry phase, a still-missing file
+#     is an ERROR (stale-plan) - so this list cannot become a permanent excuse
+#
+planned:
+- path: docs/00-start-here/documentation-audit.md
+  phase: 20
+- path: docs/03-domains/agents/README.md
+  phase: 8
+- path: docs/03-domains/audit/README.md
+  phase: 10
+- path: docs/03-domains/billing/README.md
+  phase: 10
+- path: docs/03-domains/documents/README.md
+  phase: 10
+- path: docs/03-domains/events/README.md
+  phase: 5
+- path: docs/03-domains/integrations/README.md
+  phase: 10
+- path: docs/03-domains/notifications/README.md
+  phase: 10
+- path: docs/03-domains/workflows/README.md
+  phase: 7
+- path: docs/03-domains/workflows/runtime.md
+  phase: 7
+- path: docs/03-domains/workflows/step-types.md
+  phase: 7
+- path: docs/03-domains/workflows/versioning.md
+  phase: 7
+- path: docs/04-distributed-systems/consistency-model.md
+  phase: 6
+- path: docs/04-distributed-systems/cqrs.md
+  phase: 6
+- path: docs/04-distributed-systems/event-sourcing.md
+  phase: 6
+- path: docs/04-distributed-systems/failure-recovery.md
+  phase: 6
+- path: docs/04-distributed-systems/idempotency.md
+  phase: 6
+- path: docs/04-distributed-systems/inbox-pattern.md
+  phase: 6
+- path: docs/04-distributed-systems/ordering-guarantees.md
+  phase: 6
+- path: docs/04-distributed-systems/outbox-pattern.md
+  phase: 6
+- path: docs/04-distributed-systems/sagas.md
+  phase: 6
+- path: docs/05-ai/agent-memory.md
+  phase: 9
+- path: docs/05-ai/agent-runtime.md
+  phase: 9
+- path: docs/05-ai/human-in-the-loop.md
+  phase: 9
+- path: docs/05-ai/model-routing.md
+  phase: 9
+- path: docs/05-ai/rag.md
+  phase: 9
+- path: docs/05-ai/token-governance.md
+  phase: 9
+- path: docs/05-ai/tool-system.md
+  phase: 9
+# docs/06-data — re-declared 2026-08-10 (Phase 4).
+#
+# `schema.md` and `database-architecture.md` are written and therefore removed
+# from this manifest. The other seven were declared for Phase 4 because they are
+# filed under 06-data, not because Phase 4 is when they can be written
+# truthfully. Each is now declared for the phase that builds the thing it
+# describes — which is the only phase where the document can contain evidence
+# rather than intentions.
+#
+# This is a re-declaration, not an extension: nothing here was moved to buy
+# time. `vector-storage.md` in particular cannot be written while Q4 is open,
+# because its subject is the decision Q4 has not made.
+- path: docs/06-data/data-lineage.md
+  phase: 6      # lineage is a property of the event log + projections (ADR-004, ADR-005)
+- path: docs/06-data/search.md
+  phase: 10     # Postgres FTS lands with retrieval, not before there is anything to search
+- path: docs/06-data/vector-storage.md
+  phase: 10     # blocked on Q4; `chunk_embeddings` does not exist yet (TD-010)
+- path: docs/06-data/data-retention.md
+  phase: 13     # right-to-erasure over an append-only log needs the key hierarchy from Q1
+- path: docs/06-data/caching.md
+  phase: 17     # a caching strategy without measurements is a guess (INV-08 already covers correctness)
+- path: docs/06-data/indexing-strategy.md
+  phase: 17     # conventions are in schema.md; a *strategy* needs load to be honest about
+- path: docs/06-data/partitioning.md
+  phase: 17     # gated on the per-partition RLS control (ADR-012, TD-009)
+- path: docs/07-infrastructure/autoscaling.md
+  phase: 15
+- path: docs/07-infrastructure/disaster-recovery.md
+  phase: 15
+- path: docs/07-infrastructure/infrastructure-overview.md
+  phase: 15
+- path: docs/07-infrastructure/kubernetes.md
+  phase: 15
+- path: docs/07-infrastructure/multi-region.md
+  phase: 15
+- path: docs/08-security/ai-security.md
+  phase: 13
+- path: docs/08-security/authentication.md
+  phase: 13
+- path: docs/08-security/authorization.md
+  phase: 13
+- path: docs/08-security/secrets-management.md
+  phase: 13
+- path: docs/08-security/security-architecture.md
+  phase: 13
+- path: docs/08-security/tenant-isolation.md
+  phase: 13
+- path: docs/08-security/threat-model.md
+  phase: 13
+- path: docs/09-observability/alerting.md
+  phase: 12
+- path: docs/09-observability/debugging.md
+  phase: 12
+- path: docs/09-observability/metrics.md
+  phase: 12
+- path: docs/09-observability/observability-architecture.md
+  phase: 12
+- path: docs/09-observability/tracing.md
+  phase: 12
+- path: docs/10-performance/bottlenecks.md
+  phase: 17
+- path: docs/10-performance/capacity-planning.md
+  phase: 17
+- path: docs/10-performance/performance-model.md
+  phase: 17
+- path: docs/12-operations/chaos-engineering.md
+  phase: 12
+- path: docs/12-operations/deployment.md
+  phase: 12
+- path: docs/12-operations/incident-management.md
+  phase: 12
+- path: docs/12-operations/runbooks/ai-provider-degradation.md
+  phase: 12
+- path: docs/12-operations/runbooks/projection-lag.md
+  phase: 12
+- path: docs/12-operations/runbooks/tenant-promotion.md
+  phase: 12
+- path: docs/12-operations/runbooks/workflow-stuck.md
+  phase: 12
+- path: docs/13-reference/events.md
+  phase: 5
+- path: docs/performance/performance-register.md
+  phase: 17
+- path: docs/traceability-matrix.md
+  phase: 20
