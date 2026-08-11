@@ -58,7 +58,7 @@ module MigrationLint
   Parsed = Struct.new(:path, :version, :created_tables, :indexes, :added_columns,
                       :destructive, :rls_tables, :expands_on, keyword_init: true)
 
-  CreatedTable = Struct.new(:name, :line, :tenant_column, :id_type, keyword_init: true)
+  CreatedTable = Struct.new(:name, :line, :tenant_column, :tenant_is_pk, :id_type, keyword_init: true)
   AddedIndex = Struct.new(:table, :columns, :line, :concurrent, keyword_init: true)
   AddedColumn = Struct.new(:table, :name, :line, :null_false, :has_default, keyword_init: true)
   Destructive = Struct.new(:operation, :line, :text, keyword_init: true)
@@ -94,6 +94,9 @@ module MigrationLint
       # owner necessarily has no tenant either; `tenant_exempt` is the
       # authoritative list and carries the justification for each entry.
       @tenant_exempt = Set.new(registry.fetch("platform_global", []) + registry.fetch("tenant_exempt", []))
+      # Carries a tenant column but deliberately has no policy (ADR-013). Still
+      # required to have the column and the index — only the policy is waived.
+      @rls_exempt = Set.new(registry.fetch("rls_exempt", []))
       @violations = []
     end
 
@@ -163,14 +166,21 @@ module MigrationLint
         # the table a tenant table. The block ends at the first `end` indented
         # no deeper than the create_table line itself.
         if open_table
-          open_table[:table].tenant_column = true if code.match?(/\bt\.uuid\s+:organization_id\b/)
+          if code.match?(/\bt\.uuid\s+:organization_id\b/)
+            open_table[:table].tenant_column = true
+            # A tenant column that IS the primary key is already indexed, and
+            # leading, by the PK index. Requiring a second identical index would
+            # teach people that the rule is arbitrary — which is how a linter
+            # gets switched off.
+            open_table[:table].tenant_is_pk = true if code.include?("primary_key: true")
+          end
           open_table = nil if code.match?(/^\s{0,#{open_table[:indent]}}end\b/)
           next
         end
 
         if (m = code.match(/^(\s*)create_table\s+[:"']([a-z_]+)["']?(.*)$/))
           table = CreatedTable.new(name: m[2], line: lineno, tenant_column: false,
-                                   id_type: m[3][/id:\s*:(\w+)/, 1])
+                                   tenant_is_pk: false, id_type: m[3][/id:\s*:(\w+)/, 1])
           parsed.created_tables << table
           # A single-line create_table (no block) has no columns to scan.
           open_table = { table: table, indent: m[1].length } if code.include?("do |")
@@ -237,7 +247,7 @@ module MigrationLint
           next
         end
 
-        unless indexed_by_tenant?(table.name, migration, rls_tables)
+        unless table.tenant_is_pk || indexed_by_tenant?(table.name, migration, rls_tables)
           add("missing-tenant-index", "INV-13", migration.path, table.line,
               "`#{table.name}.organization_id` is not the leading column of any index. Every query on this " \
               "table filters by tenant — via RLS if not explicitly — so without this index every tenant pays " \
@@ -245,6 +255,7 @@ module MigrationLint
         end
 
         next if rls_tables.include?(table.name)
+        next if @rls_exempt.include?(table.name)
 
         add("missing-rls", "INV-14", migration.path, table.line,
             "`#{table.name}` has no row-level security policy. Isolation layer (a) is the one that keeps " \
