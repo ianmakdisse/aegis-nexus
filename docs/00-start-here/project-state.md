@@ -54,8 +54,8 @@ disagree about what exists, **this file wins**.
 | 3 | Identity & multi-tenancy | ✅ isolation verified; password + TOTP + tokens implemented (SSO deferred to 13) |
 | 4 | Core domain model | ✅ 2 tables deferred on unresolved questions (TD-010) |
 | 5 | Event infrastructure | ✅ complete; Kafka transport deferred to 14 |
-| 6 | CQRS & event sourcing | ⬜ next |
-| 7 | Durable workflow engine | ⬜ |
+| 6 | CQRS & event sourcing | ✅ machinery complete; the four aggregates land with their runtimes |
+| 7 | Durable workflow engine | ⬜ next |
 | 8 | Agent runtime | ⬜ |
 | 9 | Tool system & governance | ⬜ |
 | 10 | RAG & knowledge | ⬜ |
@@ -94,6 +94,9 @@ disagree about what exists, **this file wins**.
 | Event backbone (publisher, relay, consumer, replay) | ✅ | 33 examples: duplicate delivery, replay, crash recovery ([ADR-003](../11-decisions/ADR-003-event-bus.md)) |
 | Transport port + PostgresLogTransport | ✅ | Full event path runs with no broker; `KafkaTransport` raises rather than stubbing |
 | Platform tenant directory | ✅ | [ADR-013](../11-decisions/ADR-013-tenant-enumeration.md) — the relay and consumer roles can now boot |
+| Event store + aggregate base | ✅ | Optimistic concurrency via unique index; pure appliers; replay determinism asserted |
+| Projections (base, runner, rebuild, lag) | ✅ | A projection is a consumer, so checkpointing and dedup come from the backbone |
+| Distributed-systems documentation | ✅ | 8 documents grounded in shipped code; `sagas.md` re-declared to Phase 7 |
 | Data documentation | ✅ | [schema](../06-data/schema.md) + [database architecture](../06-data/database-architecture.md); the other seven `06-data` docs re-declared to phases 6/10/13/17 |
 | `chunk_embeddings`, `usage_records` | ⬜ | **Deliberately not created** — blocked on Q4/Q5; see TD-010 |
 | Row-Level Security (11 policies, FORCE) | ✅ | Verified fail-closed on a non-superuser connection |

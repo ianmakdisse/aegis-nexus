@@ -9,6 +9,42 @@
 
 ---
 
+## 2026-08-11 — CQRS and event sourcing: the event store and projections
+
+**Author:** Platform (Phase 6)
+
+**Motivation:** Phase 5 could carry events. Nothing could store an aggregate's history or derive a read model
+from it, which is what Phases 7-10 build on.
+
+**New architecture:** `Events::EventStore` (append with optimistic concurrency, load with snapshot fold),
+`EventStore::Aggregate` (pure appliers), and `Projections::{Projection, Runner, Rebuild}`.
+
+**Contract change:** Events gains `EventStore`. Consumers now declare which process role runs them, so the
+`projector` role never runs ordinary handlers and vice versa.
+
+**Two decisions worth recording:**
+
+*A projection is a consumer.* It inherits checkpointing and deduplication from the backbone rather than
+growing its own. A separate checkpoint table would be a second mechanism to keep correct, and its first bug
+would look exactly like a projection that silently stopped updating.
+
+*Appliers are pure functions.* Replay re-runs them over the whole history, so an applier that reads the clock
+or the database produces a different aggregate on each rebuild — at which point history no longer determines
+state and the event log is decoration. Asserted by a test that rebuilds three times and compares.
+
+**Constitution:** no amendment. ADR-004's exception is now load-bearing in code: Authorization remains
+non-CQRS and uncached, so a revoked permission is revoked now.
+
+**Documentation:** eight `04-distributed-systems` documents plus `06-data/data-lineage.md`, each written from
+shipped code rather than from the pattern in the abstract. `sagas.md` was re-declared for Phase 7 — the only
+thing that can compensate across steps is the workflow engine, and documenting a pattern nothing implements is
+how a knowledge base starts lying.
+
+`failure-recovery.md` separates the five tested recovery paths from the hypotheses, and says plainly that the
+untested cells in the failure matrix are the most dangerous documentation here.
+
+---
+
 ## 2026-08-11 — Event backbone implemented; ADR-013 accepted
 
 **Author:** Platform (Phase 5)

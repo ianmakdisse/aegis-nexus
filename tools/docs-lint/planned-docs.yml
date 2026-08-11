@@ -65,8 +65,6 @@ planned:
 # This is a re-declaration, not an extension: nothing here was moved to buy
 # time. `vector-storage.md` in particular cannot be written while Q4 is open,
 # because its subject is the decision Q4 has not made.
-- path: docs/06-data/data-lineage.md
-  phase: 6      # lineage is a property of the event log + projections (ADR-004, ADR-005)
 - path: docs/06-data/search.md
   phase: 10     # Postgres FTS lands with retrieval, not before there is anything to search
 - path: docs/06-data/vector-storage.md
