@@ -43,6 +43,23 @@ module Nexus
       class << self
         attr_reader :topic_name, :group_name
 
+        # Which process role runs this consumer. `api` pods must not run
+        # consumers and a projector must not run ordinary handlers — a role that
+        # quietly runs someone else's work multiplies concurrency on the next
+        # deploy that scales it (roles.yml).
+        def role = :consumer
+
+        # A base class that exists to be subclassed is not itself a consumer.
+        # Marked explicitly rather than inferred from "has no topic", so a real
+        # subclass that forgot `consumes` still fails loudly instead of being
+        # quietly skipped by the role that was supposed to run it.
+        def abstract! = @abstract = true
+        def abstract? = @abstract == true
+
+        def registry_for(role)
+          registry.reject(&:abstract?).select { |consumer| consumer.role == role }
+        end
+
         # Subclasses are collected so the `consumer` role can boot all of them
         # without a registry file that someone forgets to update.
         def registry = @registry ||= []
@@ -68,7 +85,7 @@ module Nexus
         def run!(tenant_source: nil, interval: 1.0)
           loop do
             total = Relay.each_tenant_id(tenant_source).sum do |id|
-              registry.sum { |consumer| consumer.consume(organization_id: id).processed }
+              registry_for(:consumer).sum { |consumer| consumer.consume(organization_id: id).processed }
             end
             sleep(interval) if total.zero?
           end
