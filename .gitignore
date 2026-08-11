@@ -1,0 +1,69 @@
+# ---- Secrets -----------------------------------------------------------------
+# The Rails master key decrypts config/credentials.yml.enc. The encrypted file is
+# safe to commit precisely BECAUSE this key is not; committing both together is
+# equivalent to committing the plaintext.
+/apps/control-plane/config/master.key
+**/config/master.key
+
+# Real environment files. `.env.example` is a template and IS tracked.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Key material and certificates, in case any is ever generated locally.
+*.pem
+*.p12
+*.pfx
+*.key
+!**/config/*.yml.enc
+id_rsa
+id_rsa.*
+id_ecdsa
+id_ed25519
+*.gpg
+
+# ---- Rails runtime artifacts -------------------------------------------------
+# Regenerated on every boot; `tmp/` alone is ~2,100 bootsnap cache files.
+/apps/control-plane/tmp/*
+!/apps/control-plane/tmp/.keep
+!/apps/control-plane/tmp/pids/.keep
+!/apps/control-plane/tmp/storage/.keep
+/apps/control-plane/log/*
+!/apps/control-plane/log/.keep
+/apps/control-plane/storage/*
+!/apps/control-plane/storage/.keep
+/apps/control-plane/public/assets
+
+# Bundled gems, if anyone ever runs `bundle install --path vendor/bundle`.
+/apps/control-plane/vendor/bundle
+.bundle
+
+# ---- Local databases ---------------------------------------------------------
+*.sqlite3
+*.sqlite3-*
+
+# ---- Tooling and editors -----------------------------------------------------
+# Language-server scratch space; already self-ignoring, listed for clarity.
+/.ruby-lsp/
+
+# Per-developer Claude Code permissions, not shared project configuration.
+/.claude/settings.local.json
+
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# ---- Node -------------------------------------------------------------------
+# No frontend exists yet (Phase 11), but the toolchain is installed.
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# ---- Test / coverage ---------------------------------------------------------
+/coverage/
+/apps/control-plane/coverage/
