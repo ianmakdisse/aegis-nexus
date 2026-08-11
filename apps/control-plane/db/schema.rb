@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_10_000010) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_10_000011) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pgcrypto"
   enable_extension "plpgsql"
@@ -274,6 +274,36 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_10_000010) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["organization_id", "integration_id"], name: "index_endpoint_health_per_integration", unique: true
+  end
+
+  create_table "event_log_cursors", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "organization_id", null: false
+    t.string "consumer_group", null: false
+    t.string "topic", null: false
+    t.integer "partition_number", null: false
+    t.bigint "position", default: 0, null: false
+    t.datetime "committed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["organization_id", "consumer_group", "topic", "partition_number"], name: "index_event_log_cursors_position", unique: true
+  end
+
+  create_table "event_log_entries", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "organization_id", null: false
+    t.string "topic", null: false
+    t.integer "partition_number", null: false
+    t.bigint "position", null: false
+    t.string "partition_key", null: false
+    t.string "event_type", null: false
+    t.integer "event_version", default: 1, null: false
+    t.jsonb "payload", default: {}, null: false
+    t.jsonb "headers", default: {}, null: false
+    t.uuid "outbox_message_id"
+    t.datetime "published_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["organization_id", "outbox_message_id"], name: "index_event_log_entries_outbox_dedup", unique: true, where: "(outbox_message_id IS NOT NULL)"
+    t.index ["organization_id", "topic", "partition_number", "position"], name: "index_event_log_entries_position", unique: true
   end
 
   create_table "event_store_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
