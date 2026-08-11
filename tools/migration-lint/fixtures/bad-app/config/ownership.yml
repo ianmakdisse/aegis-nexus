@@ -1,0 +1,8 @@
+# Fixture registry for the migration-lint self-test.
+contexts:
+  demo:
+    tables: [good_table, no_tenant_table, unindexed_table, unprotected_table, existing_table]
+    public: [Demo]
+platform_global: []
+tenant_exempt:
+  - schema_migrations
