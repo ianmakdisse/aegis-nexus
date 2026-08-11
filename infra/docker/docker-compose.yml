@@ -1,0 +1,130 @@
+# Local development topology.
+#
+# Deliberately minimal: PostgreSQL is the only hard dependency, because ADR-002
+# makes it authoritative for everything and ADR-003's Postgres transport lets the
+# full event path — publish, deliver, dedup, replay — run without a broker.
+#
+# That is not a shortcut. It is what makes the correctness tests (duplicate
+# delivery, crash recovery, replay) runnable on a laptop and in CI.
+#
+#   docker compose -f infra/docker/docker-compose.yml up          # core
+#   docker compose -f infra/docker/docker-compose.yml --profile broker up   # + Kafka
+#
+# Status: see docs/technical-debt.md TD-001 — these files are not yet verified
+# on a machine with a Docker daemon.
+
+name: aegis-nexus
+
+x-app: &app
+  build:
+    context: ../..
+    dockerfile: infra/docker/Dockerfile
+  environment: &app-env
+    RAILS_ENV: development
+    DATABASE_URL: postgres://nexus:nexus@postgres:5432/nexus_development
+    REDIS_URL: redis://redis:6379/0
+    NEXUS_EVENT_TRANSPORT: ${NEXUS_EVENT_TRANSPORT:-postgres}
+    NEXUS_ENFORCE_TENANT_CONTEXT: "true"
+  depends_on:
+    postgres:
+      condition: service_healthy
+  volumes:
+    - ../../apps/control-plane:/app
+  restart: unless-stopped
+
+services:
+  postgres:
+    # pgvector image: embeddings live in PostgreSQL (ADR-008), so the extension
+    # is part of the baseline rather than an optional add-on.
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: nexus
+      POSTGRES_DB: nexus_development
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus -d nexus_development"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    command:
+      # Development-only settings that surface production-shaped problems early:
+      # log slow queries, and make lock waits fail fast instead of hanging.
+      - postgres
+      - -c
+      - log_min_duration_statement=200
+      - -c
+      - lock_timeout=5s
+      - -c
+      - idle_in_transaction_session_timeout=30s
+
+  redis:
+    # Cache, rate limits, and live-push fan-out only. INV-08: the platform must
+    # run correctly with this container stopped — try it, that is a valid test.
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    <<: *app
+    environment:
+      <<: *app-env
+      NEXUS_ROLE: api
+    ports: ["3000:3000"]
+
+  relay:
+    <<: *app
+    environment:
+      <<: *app-env
+      NEXUS_ROLE: relay
+
+  consumer:
+    <<: *app
+    environment:
+      <<: *app-env
+      NEXUS_ROLE: consumer
+
+  projector:
+    <<: *app
+    environment:
+      <<: *app-env
+      NEXUS_ROLE: projector
+
+  worker:
+    <<: *app
+    environment:
+      <<: *app-env
+      NEXUS_ROLE: "worker:steps,timers,default"
+
+  scheduler:
+    <<: *app
+    environment:
+      <<: *app-env
+      NEXUS_ROLE: scheduler
+
+  # ---- Optional: production-shaped broker --------------------------------
+  # Only needed to exercise Kafka-specific behavior (rebalances, partition
+  # assignment, consumer groups). Everything else runs on the Postgres transport.
+  kafka:
+    profiles: ["broker"]
+    image: bitnami/kafka:3.7
+    environment:
+      KAFKA_CFG_NODE_ID: "0"
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+    ports: ["9092:9092"]
+
+volumes:
+  pgdata:

@@ -1,0 +1,179 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  RUBY_VERSION: "3.2"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Constitutional checks run FIRST and are blocking.
+  #
+  # These are not style gates. Each one is the enforcement mechanism an ADR
+  # explicitly depends on, so a failure here means the architecture's stated
+  # assumptions no longer hold — not that someone forgot a trailing comma.
+  # ---------------------------------------------------------------------------
+  constitution:
+    name: Constitutional invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+
+      - name: Documentation consistency (INV-26)
+        run: ruby tools/docs-lint/lint.rb
+
+      - name: Boundary checker self-test
+        run: ./tools/boundary-check/self-test.sh
+
+      - name: Module boundaries (INV-01, INV-02, INV-03, INV-04, INV-13)
+        run: ruby tools/boundary-check/check.rb
+
+  # ---------------------------------------------------------------------------
+  static:
+    name: Lint & static analysis
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/control-plane
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+          working-directory: apps/control-plane
+
+      - name: RuboCop
+        run: bundle exec rubocop --parallel
+
+      - name: Zeitwerk eager-load check
+        run: bundle exec rails zeitwerk:check
+        env:
+          RAILS_ENV: test
+
+  # ---------------------------------------------------------------------------
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/control-plane
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: nexus
+          POSTGRES_PASSWORD: nexus
+          POSTGRES_DB: nexus_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://nexus:nexus@localhost:5432/nexus_test
+      # ADR-003: the full event path runs on PostgreSQL alone in CI, which is
+      # what makes duplicate-delivery, replay, and crash-recovery tests possible
+      # without standing up a broker.
+      NEXUS_EVENT_TRANSPORT: postgres
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+          working-directory: apps/control-plane
+
+      - name: Prepare database
+        run: bundle exec rails db:prepare
+
+      - name: Unit & integration specs
+        run: bundle exec rspec --tag ~type:chaos --tag ~type:load
+
+      # Isolation is the one property where a single missed check is a breach,
+      # so it runs as its own reported step rather than being buried in the suite.
+      - name: Tenant isolation suite (INV-14)
+        run: bundle exec rspec --tag isolation
+
+      # Every recovery behavior claimed in docs/02-architecture/failure-domains.md
+      # is a hypothesis until this job passes.
+      - name: Chaos regression scenarios
+        run: bundle exec rspec --tag type:chaos
+
+  # ---------------------------------------------------------------------------
+  compatibility:
+    name: N / N+1 schema compatibility (INV-11)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/control-plane
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: nexus
+          POSTGRES_PASSWORD: nexus
+          POSTGRES_DB: nexus_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://nexus:nexus@localhost:5432/nexus_test
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+          working-directory: apps/control-plane
+
+      # Rolling deploys run version N and N+1 against the same schema by design.
+      # This job migrates to the new schema, then runs the PREVIOUS version's
+      # specs against it. A "simple" column rename fails here rather than in
+      # production, which is the entire point of expand → migrate → contract.
+      - name: Migrate to HEAD schema
+        run: bundle exec rails db:prepare
+
+      - name: Run previous version's specs against new schema
+        run: |
+          git worktree add /tmp/prev "$(git rev-parse HEAD~1)"
+          cd /tmp/prev/apps/control-plane
+          bundle install --quiet
+          bundle exec rspec --tag ~type:chaos --tag ~type:load
+
+  # ---------------------------------------------------------------------------
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/control-plane
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+          working-directory: apps/control-plane
+
+      - name: Dependency audit
+        run: |
+          gem install bundler-audit --no-document
+          bundle-audit check --update
+
+      # INV-18: secrets must never reach logs, traces, or model prompts.
+      - name: Telemetry redaction test
+        run: bundle exec rspec --tag redaction
