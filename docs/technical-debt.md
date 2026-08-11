@@ -144,6 +144,19 @@
 | **Mitigation** | Everything either table depends on is built, so neither blocks other work today. |
 | **Priority** | P2 — Q5 before Phase 9, Q4 before Phase 10 |
 
+### TD-011 — `without_tenant_for_platform_operation` does not clear the database session variable
+
+| | |
+|---|---|
+| **Description** | The helper clears isolation layer (c) — the Fiber-local tenant context — but not layer (a), the PostgreSQL `nexus.organization_id` session variable, because `SET LOCAL` is transaction-scoped and survives the release of a savepoint. |
+| **Reason** | Found in Phase 5 while writing the ADR-013 specs. The name promises more than the implementation delivers. |
+| **Impact** | None today: every platform-global table (`permissions`, `tenant_directory`, `event_type_registry`) has no RLS policy, so a stale variable changes nothing. A future platform operation reading an **RLS-protected** table from inside a tenant's transaction would silently see that one tenant's rows and believe it had seen all of them. |
+| **Risk** | Low now, high when it bites — the failure is silent and looks like correct data. |
+| **Effort** | Small, but it changes the semantics of a core isolation primitive: the helper would need to issue `SET LOCAL nexus.organization_id = ''` and restore it, which interacts with nested transactions. |
+| **Affected** | `infrastructure/tenancy/context.rb`; every current and future caller. |
+| **Mitigation** | Asserted by a test in `spec/organizations/tenant_spec.rb`, so the behaviour is documented and cannot regress unnoticed. An undocumented sharp edge is far more dangerous than a documented one. |
+| **Priority** | P2 — before any platform operation reads an RLS-protected table |
+
 ---
 
 ## Deliberately accepted (not debt, decisions)

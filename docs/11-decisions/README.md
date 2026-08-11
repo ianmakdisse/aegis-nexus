@@ -25,6 +25,7 @@
 | [010](ADR-010-consistency-model.md) | Declared consistency class per operation | Accepted | Anything that can *deny* an action must read strongly consistent state |
 | [011](ADR-011-authentication.md) | Stateless access tokens carrying identity only | Accepted | Identity may be briefly stale; permissions may not — so the token asserts who, never what |
 | [012](ADR-012-domain-schema.md) | Domain schema unpartitioned; two tables deliberately missing | Accepted | A partition without a policy is a cross-tenant read; partitioning later is merely expensive |
+| [013](ADR-013-tenant-enumeration.md) | Platform processes enumerate tenants from a directory | Accepted | A correctly isolated system cannot list its own tenants; the alternative was a role that reads across them |
 
 ---
 

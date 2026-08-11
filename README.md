@@ -57,7 +57,7 @@ NEXUS_ROLE=api bundle exec rails server
 
 Roles are selected with `NEXUS_ROLE` — see [`config/roles.yml`](apps/control-plane/config/roles.yml).
 
-## The twelve decisions that shape everything
+## The thirteen decisions that shape everything
 
 | | Decision | Why |
 |---|----------|-----|
@@ -73,6 +73,7 @@ Roles are selected with `NEXUS_ROLE` — see [`config/roles.yml`](apps/control-p
 | [010](docs/11-decisions/ADR-010-consistency-model.md) | Declared consistency per operation | Anything that can *deny* an action reads strong state |
 | [011](docs/11-decisions/ADR-011-authentication.md) | Access tokens carry identity, never permissions | Identity may be briefly stale; authority may not |
 | [012](docs/11-decisions/ADR-012-domain-schema.md) | Domain schema unpartitioned until the maintenance job exists | A partition does not inherit its parent's RLS policy |
+| [013](docs/11-decisions/ADR-013-tenant-enumeration.md) | Platform processes enumerate tenants from a directory | A correctly isolated system cannot list its own tenants |
 
 ## Non-negotiables
 

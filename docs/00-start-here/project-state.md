@@ -53,8 +53,8 @@ disagree about what exists, **this file wins**.
 | 2 | Repository structure & foundations | ✅ |
 | 3 | Identity & multi-tenancy | ✅ isolation verified; password + TOTP + tokens implemented (SSO deferred to 13) |
 | 4 | Core domain model | ✅ 2 tables deferred on unresolved questions (TD-010) |
-| 5 | Event infrastructure | ⬜ next |
-| 6 | CQRS & event sourcing | ⬜ |
+| 5 | Event infrastructure | ✅ backbone complete; Kafka transport deferred to 14 |
+| 6 | CQRS & event sourcing | ⬜ next |
 | 7 | Durable workflow engine | ⬜ |
 | 8 | Agent runtime | ⬜ |
 | 9 | Tool system & governance | ⬜ |
@@ -78,7 +78,7 @@ disagree about what exists, **this file wins**.
 |-----------|--------|-------|
 | Requirements register (FR/NFR) | ✅ | [requirements.md](../01-product/requirements.md) |
 | Architecture Constitution v1.0 | ✅ | 26 invariants, enforcement mapped |
-| ADR-001 … ADR-011 | ✅ | All accepted |
+| ADR-001 … ADR-013 | ✅ | All accepted |
 | Context map & ownership register | ✅ | [context-map.md](../02-architecture/context-map.md) |
 | Failure matrix (33 rows) | ✅ | Recovery behaviors are **hypotheses** until chaos tests exist |
 | Docs consistency checker | ✅ | `tools/docs-lint` — 6 rules, planned-docs manifest, CI-blocking |
@@ -91,6 +91,9 @@ disagree about what exists, **this file wins**.
 | Database schema (55 tables) | ✅ | 10 migrations applied to dev + test |
 | Core domain schema (40 tables) | ✅ | Events, Workflows, Agents, Integrations, Documents, Notifications, Billing, Audit ([ADR-012](../11-decisions/ADR-012-domain-schema.md)) |
 | Schema conformance suite (7 examples) | ✅ | Asserts RLS from `pg_class`/`pg_policies` for every tenant table; mutation-tested |
+| Event backbone (publisher, relay, consumer, replay) | ✅ | 33 examples: duplicate delivery, replay, crash recovery ([ADR-003](../11-decisions/ADR-003-event-bus.md)) |
+| Transport port + PostgresLogTransport | ✅ | Full event path runs with no broker; `KafkaTransport` raises rather than stubbing |
+| Platform tenant directory | ✅ | [ADR-013](../11-decisions/ADR-013-tenant-enumeration.md) — the relay and consumer roles can now boot |
 | Data documentation | ✅ | [schema](../06-data/schema.md) + [database architecture](../06-data/database-architecture.md); the other seven `06-data` docs re-declared to phases 6/10/13/17 |
 | `chunk_embeddings`, `usage_records` | ⬜ | **Deliberately not created** — blocked on Q4/Q5; see TD-010 |
 | Row-Level Security (11 policies, FORCE) | ✅ | Verified fail-closed on a non-superuser connection |
@@ -178,6 +181,7 @@ Tracked in full in [technical-debt.md](../technical-debt.md). Current items:
 | TD-007 | MFA secrets use application-level encryption, not envelope encryption (blocked on Q1) | INV-18 only partially satisfied |
 | TD-009 | High-volume tables unpartitioned; partitioning gated on a per-partition RLS control | A known future migration cost, preferred over an unverifiable isolation rule |
 | TD-010 | `chunk_embeddings` and `usage_records` not created (Q4/Q5 unresolved) | Blocks completion of Phases 9 and 10 |
+| TD-011 | `without_tenant_for_platform_operation` clears layer (c) but not the DB session variable | Latent: a future platform read of an RLS table inside a tenant transaction would see one tenant and believe it saw all |
 
 ---
 

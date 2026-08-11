@@ -9,6 +9,53 @@
 
 ---
 
+## 2026-08-11 — Event backbone implemented; ADR-013 accepted
+
+**Author:** Platform (Phase 5)
+
+**Motivation:** Forty tables existed and nothing moved between them. Every phase from 6 onward — CQRS,
+projections, the workflow engine, the agent runtime — consumes events that had no way to be published,
+carried, or handled.
+
+**Old architecture:** the Events context was eight tables and no code.
+
+**New architecture:** `Publisher` (INV-04 guard), `Envelope`, `EventType` (INV-10 additive-only), the
+`Transport` port with `PostgresLogTransport`, `Relay`, `Consumer` and `Replay`. The full event path — publish,
+relay, consume, dead-letter, replay — runs against PostgreSQL with no broker, which is exactly what ADR-003
+said the port was for.
+
+**Contract change:** Events gains `Relay`; Organizations gains `Tenant`. `config/ownership.yml` gains a third
+category, `rls_exempt`, and a `* → events` synchronous edge (publishing is an INSERT into the caller's own
+outbox inside the caller's own transaction, so it adds no availability coupling).
+
+**Constitution:** no amendment. INV-04 and INV-05 are now enforced by runtime guards rather than by intent —
+the publisher refuses to run outside a transaction, and the base consumer refuses to run a handler with no
+dedup key.
+
+**The finding that produced [ADR-013](11-decisions/ADR-013-tenant-enumeration.md):** a correctly isolated
+system cannot list its own tenants. `organizations` is RLS-protected and no application role bypasses policy,
+so the relay had no way to discover whose outboxes to drain — and neither did the consumer, projector,
+scheduler, or any future reconciliation job. Resolved with a platform directory holding identifiers and no
+descriptions, written in provisioning's own transaction. The rejected alternative — a role with a read policy
+over `organizations` — fails silently when a policy is edited; this one fails visibly, in a migration diff.
+
+**Defects found and fixed in passing:**
+
+1. **Inbox dedup poisoned its own transaction.** `claim` rescued `RecordNotUnique`, but in PostgreSQL a failed
+   statement aborts the whole transaction — so the caller's next query raised `PG::InFailedSqlTransaction` and
+   the duplicate was dead-lettered as a handler failure. The INSERT now runs in a savepoint. Found by the
+   duplicate-delivery test, which is one of the three scenarios ADR-003 exists to make runnable.
+2. **`migration-lint` demanded a duplicate index** on a tenant column that was already the primary key.
+   Teaching people a rule is arbitrary is how a linter gets switched off.
+
+**Recorded, not fixed — TD-011:** `without_tenant_for_platform_operation` clears the application tenant
+context but not the PostgreSQL session variable, because `SET LOCAL` survives the release of a savepoint. No
+current caller is affected; a future platform read of an RLS table inside a tenant transaction would see one
+tenant and believe it had seen all of them. Asserted by a test rather than fixed — changing a core isolation
+primitive is not a Phase 5 change.
+
+---
+
 ## 2026-08-11 — Repository placed under version control at the Phase 4 baseline
 
 **Author:** Platform

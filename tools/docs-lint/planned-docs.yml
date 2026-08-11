@@ -22,8 +22,6 @@ planned:
   phase: 10
 - path: docs/03-domains/documents/README.md
   phase: 10
-- path: docs/03-domains/events/README.md
-  phase: 5
 - path: docs/03-domains/integrations/README.md
   phase: 10
 - path: docs/03-domains/notifications/README.md
